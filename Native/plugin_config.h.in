@@ -1,0 +1,7 @@
+#ifndef PLUGIN_CONFIG_H
+#define PLUGIN_CONFIG_H
+
+#define DWM_SAMPLE_RATE @DWM_SAMPLE_RATE@
+#define DWM_BUFFER_SIZE @DWM_BUFFER_SIZE@
+
+#endif

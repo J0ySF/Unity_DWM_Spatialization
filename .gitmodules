@@ -1,0 +1,3 @@
+[submodule "Native/third-party/NativeAudioPlugins"]
+	path = Native/third-party/NativeAudioPlugins
+	url = https://github.com/Unity-Technologies/NativeAudioPlugins
