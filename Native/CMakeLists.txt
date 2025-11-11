@@ -75,6 +75,8 @@ set(UNITY_ASSETS_PLUGIN_DIR "${PROJECT_SOURCE_DIR}/../Assets/Plugins")
 # Install the built shared library to the Plugins folder in the Unity project
 set_target_properties(Unity_DWM_Spatializer PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY "${UNITY_ASSETS_PLUGIN_DIR}/${INSTALL_TARGET_PREFIX}")
+set_target_properties(Unity_DWM_Spatializer PROPERTIES
+        LIBRARY_OUTPUT_DIRECTORY "${UNITY_ASSETS_PLUGIN_DIR}/${INSTALL_TARGET_PREFIX}")
 # MSVC fix to avoid Debug or Release prefix in the output path
 if (MSVC)
     set_target_properties(Unity_DWM_Spatializer PROPERTIES
