@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.10)
 project(Unity_DWM_Spatialization VERSION 0.0.1)
 
 set(CMAKE_CXX_STANDARD 20)
@@ -9,8 +9,17 @@ endif ()
 # When adding compiler support, configure the compiler specific flags
 # so that the shared library is aggressively optimized for the host target
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
-    set(CMAKE_CXX_FLAGS_RELEASE "-Ofast -march=native -mtune=native") #  -flto
-    set(COMPILER_DISABLE_FILE_WARNINGS_FLAG "-w")
+    set(CMAKE_CXX_FLAGS_RELEASE "-Ofast -march=native -mtune=native") # TODO: try -flto
+    if (MINGW)
+        # Link statically on MinGW, otherwise Unity cannot load the dependencies
+        set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -static")
+    endif ()
+    set(DISABLE_WARNINGS_FLAG "-w")
+    set(DISABLE_FAST_FP_MATH "-fno-fast-math")
+elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
+    set(CMAKE_CXX_FLAGS_RELEASE "/O2 /Ot /GL /fp:fast")
+    set(DISABLE_WARNINGS_FLAG "/w")
+    set(DISABLE_FAST_FP_MATH "/fp:precise")
 else ()
     message(FATAL_ERROR "Compiler ${CMAKE_CXX_COMPILER_ID} is not supported yet!")
 endif ()
@@ -39,22 +48,37 @@ set(UNITY_NATIVE_AUDIO_PLUGIN_SOURCES
         ${CMAKE_BINARY_DIR}/AudioPluginUtil.cpp
         ${CMAKE_BINARY_DIR}/AudioPluginInterface.h
         ${CMAKE_BINARY_DIR}/AudioPluginUtil.h)
-set_source_files_properties(${UNITY_NATIVE_AUDIO_PLUGIN_SOURCES} PROPERTIES COMPILE_FLAGS ${COMPILER_DISABLE_FILE_WARNINGS_FLAG})
+set_source_files_properties(${UNITY_NATIVE_AUDIO_PLUGIN_SOURCES} PROPERTIES COMPILE_FLAGS ${DISABLE_WARNINGS_FLAG})
+# Disable /fp:fast on this file on MSVC, otherwise Unity fails to load the library (should not cause performance loss)
+if (MSVC)
+    set_source_files_properties(${CMAKE_BINARY_DIR}/AudioPluginUtil.cpp PROPERTIES COMPILE_FLAGS ${DISABLE_FAST_FP_MATH})
+endif ()
 
 # Compile the library
 add_library(Unity_DWM_Spatializer SHARED plugin.cpp ${UNITY_NATIVE_AUDIO_PLUGIN_SOURCES})
 target_include_directories(Unity_DWM_Spatializer PUBLIC ${CMAKE_SOURCE_DIR} ${CMAKE_BINARY_DIR})
 
 # Link libraries and configure the Plugins folder target prefix
-IF (UNIX)
+if (UNIX)
     # Suppose that UNIX -> Linux
     # TODO: improve target detection for other "non-Linux" UNIX targets
     target_link_libraries(Unity_DWM_Spatializer INTERFACE m)
     set(INSTALL_TARGET_PREFIX "Linux_x86_64")
+elseif (WIN32)
+    set(INSTALL_TARGET_PREFIX "Windows_x86_64")
 else ()
     message(FATAL_ERROR "Detected target platform is not supported yet!")
 endif ()
 
+set(UNITY_ASSETS_PLUGIN_DIR "${PROJECT_SOURCE_DIR}/../Assets/Plugins")
+
 # Install the built shared library to the Plugins folder in the Unity project
-set(CMAKE_INSTALL_PREFIX ${PROJECT_SOURCE_DIR}/../Assets/Plugins)
-install(TARGETS Unity_DWM_Spatializer LIBRARY DESTINATION ${INSTALL_TARGET_PREFIX})
+set_target_properties(Unity_DWM_Spatializer PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY "${UNITY_ASSETS_PLUGIN_DIR}/${INSTALL_TARGET_PREFIX}")
+# MSVC fix to avoid Debug or Release prefix in the output path
+if (MSVC)
+    set_target_properties(Unity_DWM_Spatializer PROPERTIES
+            RUNTIME_OUTPUT_DIRECTORY_DEBUG "${UNITY_ASSETS_PLUGIN_DIR}/${INSTALL_TARGET_PREFIX}")
+    set_target_properties(Unity_DWM_Spatializer PROPERTIES
+            RUNTIME_OUTPUT_DIRECTORY_RELEASE "${UNITY_ASSETS_PLUGIN_DIR}/${INSTALL_TARGET_PREFIX}")
+endif ()
