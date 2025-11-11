@@ -8,6 +8,12 @@ Developed and tested on Unity 6.0 LTS.
 
 TODO: describe usage.
 
+### Supported platforms/versions
+
+* Linux with GCC
+* Windows with MinGW64 GCC
+* Windows with MSVC (not recommended, read below for more)
+
 ### Disclaimers
 
 The algorithm employed is very resource hungry, with running time depending on both spatialized volume size and audio
@@ -17,27 +23,35 @@ To alleviate the heavy costs of the algorithm, the CMakeLists.txt file sets up c
 code build for the target machine: for this reason, the plugins are not included in the repository and must be compiled
 as explained in the following (before opening the Unity project).
 
-### Supported platforms/versions
+#### Why MSVC is **not** recommended (for now)
 
-* Linux with GCC
+For reasons that are not clearly understood at the moment, MSVC is not able to optimize the DWM implementation as much
+as GCC, which in tests yields code that is *at least* twice as fast. For this reason is *highly encouraged* to compile
+with MinGW64 GCC on Windows.
+
+If someone is more knowledgeable of MSVC and can help improve MSVC performance, help is welcome!
 
 ### How to build
 
 #### Requirements
 
 * One of the supported compilers for your target platform (at least C++20 compatible)
-* CMake (version >= 3.5)
+* CMake (version >= 3.10)
 
 #### Build instructions
 
 ##### IDE build
 
-The easiest way to build is to open the build folder with any IDE which supports CMake projects (such as Visual Studio
-or CLion, to then **build** and **install** the `Unity_DWM_Spatializer` target using the IDE's functionalities.
+The easiest way to build is to open the build folder with any IDE which supports CMake projects (such as CLion or Visual
+Studio, to then **build** the `Unity_DWM_Spatializer` target using the IDE's functionalities.
 
 ##### Manual build
 
 TODO: describe procedure
+
+#### Compile options
+
+TODO: describe
 
 ## Assets attributions
 
