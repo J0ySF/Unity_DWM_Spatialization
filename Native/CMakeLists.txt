@@ -9,10 +9,10 @@ endif ()
 # When adding compiler support, configure the compiler specific flags
 # so that the shared library is aggressively optimized for the host target
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
-    set(CMAKE_CXX_FLAGS_RELEASE "-Ofast -march=native -mtune=native") # TODO: try -flto
+    set(CMAKE_CXX_FLAGS_RELEASE "-Ofast -march=native -mtune=native") # TODO: try -flto on non-MINGW targets
     if (MINGW)
         # Link statically on MinGW, otherwise Unity cannot load the dependencies
-        set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -static")
+        set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -static -flto")
     endif ()
     set(DISABLE_WARNINGS_FLAG "-w")
     set(DISABLE_FAST_FP_MATH "-fno-fast-math")
