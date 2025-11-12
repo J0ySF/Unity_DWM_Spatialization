@@ -35,6 +35,11 @@ if (NOT DEFINED DWM_BUFFER_SIZE)
 elseif (DWM_BUFFER_SIZE LESS_EQUAL 0)
     message(FATAL_ERROR "Invalid DWM buffer size specified!")
 endif ()
+if (NOT DEFINED DWM_MAX_SOURCE_COUNT)
+    set(DWM_MAX_SOURCE_COUNT 16)
+elseif (DWM_MAX_SOURCE_COUNT LESS_EQUAL 0)
+    message(FATAL_ERROR "Invalid DWM source count specified!")
+endif ()
 configure_file(plugin_config.h.in ${CMAKE_BINARY_DIR}/plugin_config.h)
 
 # Use Unity Native Audio Plugin sources
