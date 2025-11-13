@@ -101,6 +101,10 @@ namespace dwm {
     };
 
     /// 3-dimensional Rectilinear K-DWM implementation
+    /// @param width width in meters of the mesh
+    /// @param height height in meters of the mesh
+    /// @param depth depth in meters of the mesh
+    /// @param sample_rate sample rate of the input signal
     /// @param xp_filter filter for the x+ boundary
     /// @param xp_filter_params x+ boundary filter parameters type
     /// @param xn_filter filter implementation for the x- boundary
@@ -113,7 +117,8 @@ namespace dwm {
     /// @param zp_filter_params z+ boundary filter parameters type
     /// @param zn_filter filter implementation for the z- boundary
     /// @param zn_filter_params z- boundary filter parameters type
-    template<typename xp_filter, typename xp_filter_params, typename xn_filter, typename xn_filter_params,
+    template<const float width, const float height, const float depth, const int sample_rate, //
+             typename xp_filter, typename xp_filter_params, typename xn_filter, typename xn_filter_params,
              typename yp_filter, typename yp_filter_params, typename yn_filter, typename yn_filter_params,
              typename zp_filter, typename zp_filter_params, typename zn_filter, typename zn_filter_params>
         requires(std::is_base_of_v<filters::filter<xp_filter_params>, xp_filter>,
@@ -135,10 +140,12 @@ namespace dwm {
         //   [<0,0,0>, <1,0,0>, ... , <s_x,0,0>, <0,1,0>, ..., <s_x,s_y,0>, <0,0,1>,
         //   ..., <s_x,s_y,s_z>])
 
-        float density; // Junctions density, dependent on the mesh's required sample
-                       // rate
-        int size_x, size_y, size_z; // Junctions dimensionality, dependent on the
-                                    // mesh's density and "world size"
+        // Junctions density, dependent on the mesh's required sample rate
+        static constexpr float density = static_cast<float>(sample_rate) / (std::sqrt(3.0f) * 343.0f);
+        // Junctions dimensionality, dependent on the mesh's density and "world size"
+        static constexpr int size_x = std::max(1, static_cast<int>(std::ceil(width * density)));
+        static constexpr int size_y = std::max(1, static_cast<int>(std::ceil(height * density)));
+        static constexpr int size_z = std::max(1, static_cast<int>(std::ceil(depth * density)));
 
         float *p; // Linearized storage of "z timestep" K values for each junction
         float *p_aux; // Linearized storage of "z-1 timestep" K value for each junction
@@ -159,18 +166,18 @@ namespace dwm {
         mesh_boundary<zn_filter, yn_filter_params> *b_zn;
 
         // Converts from junction coordinates to a linearized coordinates
-        [[nodiscard]] int junction_to_linearized(const int x, const int y, const int z) const {
+        [[nodiscard]] static int junction_to_linearized(const int x, const int y, const int z) {
             return (z * size_y + y) * size_x + x;
         }
 
         // Compute interpolation parameters for a world coordinate
-        void compute_interpolation_parameters(const float x, const float y, const float z, float &px, float &py,
+        static void compute_interpolation_parameters(const float x, const float y, const float z, float &px, float &py,
                                               float &pz, int &i000, int &i100, int &i010, int &i110, int &i001,
-                                              int &i101, int &i011, int &i111) const {
+                                              int &i101, int &i011, int &i111) {
             // World coordinates scaled to match junction coordinates' scale
-            const float xs = x * density;
-            const float ys = y * density;
-            const float zs = z * density;
+            const float xs = std::clamp(x, 0.0f, width) * density;
+            const float ys = std::clamp(y, 0.0f, height) * density;
+            const float zs = std::clamp(z, 0.0f, depth) * density;
 
             // Get the next and previous junction coordinates for each dimension
             const int x_0 = std::clamp(static_cast<int>(std::floor(xs)), 0, size_x - 1);
@@ -198,23 +205,12 @@ namespace dwm {
 
     public:
         /// Builds a new instance\n
-        /// The mesh's valid coordinates range from (0,0) to (width, height)
-        /// @param sample_rate sample rate of the input signal
-        /// @param width width in meters of the mesh
-        /// @param height height in meters of the mesh
-        /// @param depth depth in meters of the mesh
-        explicit mesh_3d(const int sample_rate, const float width, const float height, const float depth) {
-            assert(sample_rate > 0 && "sample rate must be greater than zero");
-            assert(width > 0 && "width must be greater than zero");
-            assert(height > 0 && "height must be greater than zero");
-            assert(depth > 0 && "depth must be greater than zero");
-
-            // Compute the mesh's density based on the sample rate (junctions per meter)
-            density = static_cast<float>(sample_rate) / (std::sqrt(3.0f) * 343.0f);
-            // Compute junction dimensionality based on density and world size
-            size_x = static_cast<int>(std::ceil(width * density));
-            size_y = static_cast<int>(std::ceil(height * density));
-            size_z = static_cast<int>(std::ceil(depth * density));
+        /// The mesh's valid coordinates range from (0,0) to (width, height, depth)
+        explicit mesh_3d() {
+            static_assert(width > 0 && "width must be greater than zero");
+            static_assert(height > 0 && "height must be be greater than zero");
+            static_assert(depth > 0 && "depth must be greater than zero");
+            static_assert(sample_rate > 0 && "sample rate must be greater than zero");
 
             // Allocate all buffers
             p = new float[size_x * size_y * size_z];
