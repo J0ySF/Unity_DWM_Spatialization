@@ -42,7 +42,22 @@ namespace DWM_Mesh_Simulation {
                          boundary_parameters, filter, boundary_parameters> //
             mesh_admittance_lowpass;
 
-    enum param_t { param_gain, param_num };
+    enum param_t {
+        param_gain,
+        param_admittance_xp,
+        param_cutoff_xp, //
+        param_admittance_xn,
+        param_cutoff_xn, //
+        param_admittance_yp,
+        param_cutoff_yp, //
+        param_admittance_yn,
+        param_cutoff_yn, //
+        param_admittance_zp,
+        param_cutoff_zp, //
+        param_admittance_zn,
+        param_cutoff_zn, //
+        param_num
+    };
 
     struct data_t {
         float parameters[param_num];
@@ -55,6 +70,58 @@ namespace DWM_Mesh_Simulation {
                                            -100.0f, 100.0f, 0.0f, //
                                            1.0f, 1.0f, //
                                            param_gain, "Overall gain applied");
+
+        AudioPluginUtil::RegisterParameter(definition, "Admittance X+", "%", //
+                                           0.0f, 1.0f, 0.0f, //
+                                           1.0f, 1.0f, //
+                                           param_admittance_xp, "Admittance X+");
+        AudioPluginUtil::RegisterParameter(definition, "Cutoff X+", "%", //
+                                           0.0f, 1.0f, 0.0f, //
+                                           1.0f, 1.0f, //
+                                           param_cutoff_xp, "Cutoff X+");
+        AudioPluginUtil::RegisterParameter(definition, "Admittance X-", "%", //
+                                           0.0f, 1.0f, 0.0f, //
+                                           1.0f, 1.0f, //
+                                           param_admittance_xn, "Admittance X-");
+        AudioPluginUtil::RegisterParameter(definition, "Cutoff X-", "%", //
+                                           0.0f, 1.0f, 0.0f, //
+                                           1.0f, 1.0f, //
+                                           param_cutoff_xn, "Cutoff X-");
+
+        AudioPluginUtil::RegisterParameter(definition, "Admittance Y+", "%", //
+                                   0.0f, 1.0f, 0.0f, //
+                                   1.0f, 1.0f, //
+                                   param_admittance_yp, "Admittance Y+");
+        AudioPluginUtil::RegisterParameter(definition, "Cutoff Y+", "%", //
+                                           0.0f, 1.0f, 0.0f, //
+                                           1.0f, 1.0f, //
+                                           param_cutoff_yp, "Cutoff Y+");
+        AudioPluginUtil::RegisterParameter(definition, "Admittance Y-", "%", //
+                                           0.0f, 1.0f, 0.0f, //
+                                           1.0f, 1.0f, //
+                                           param_admittance_yn, "Admittance Y-");
+        AudioPluginUtil::RegisterParameter(definition, "Cutoff Y-", "%", //
+                                           0.0f, 1.0f, 0.0f, //
+                                           1.0f, 1.0f, //
+                                           param_cutoff_yn, "Cutoff Y-");
+
+        AudioPluginUtil::RegisterParameter(definition, "Admittance Z+", "%", //
+                                   0.0f, 1.0f, 0.0f, //
+                                   1.0f, 1.0f, //
+                                   param_admittance_zp, "Admittance Z+");
+        AudioPluginUtil::RegisterParameter(definition, "Cutoff Z+", "%", //
+                                           0.0f, 1.0f, 0.0f, //
+                                           1.0f, 1.0f, //
+                                           param_cutoff_zp, "Cutoff Z+");
+        AudioPluginUtil::RegisterParameter(definition, "Admittance Z-", "%", //
+                                           0.0f, 1.0f, 0.0f, //
+                                           1.0f, 1.0f, //
+                                           param_admittance_zn, "Admittance Z-");
+        AudioPluginUtil::RegisterParameter(definition, "Cutoff Z-", "%", //
+                                           0.0f, 1.0f, 0.0f, //
+                                           1.0f, 1.0f, //
+                                           param_cutoff_zn, "Cutoff Z-");
+
         definition.flags |= UnityAudioEffectDefinitionFlags_NeedsSpatializerData;
         return param_num;
     }
@@ -122,7 +189,12 @@ namespace DWM_Mesh_Simulation {
         const float listen_r_y = listen_y + listen_right_y;
         const float listen_r_z = listen_z + listen_right_z;
 
-        const auto p = boundary_parameters(0.9f, 0.1f); // TODO: get from effect parameters
+        const auto p_xp = boundary_parameters(data->parameters[param_admittance_xp], data->parameters[param_cutoff_xp]);
+        const auto p_xn = boundary_parameters(data->parameters[param_admittance_xn], data->parameters[param_cutoff_xn]);
+        const auto p_yp = boundary_parameters(data->parameters[param_admittance_yp], data->parameters[param_cutoff_yp]);
+        const auto p_yn = boundary_parameters(data->parameters[param_admittance_yn], data->parameters[param_cutoff_yn]);
+        const auto p_zp = boundary_parameters(data->parameters[param_admittance_zp], data->parameters[param_cutoff_zp]);
+        const auto p_zn = boundary_parameters(data->parameters[param_admittance_zn], data->parameters[param_cutoff_zn]);
 
         const float gain = powf(10.0f, data->parameters[param_gain] * 0.05f);
         for (unsigned int n = 0; n < num_samples; n++) {
@@ -130,7 +202,7 @@ namespace DWM_Mesh_Simulation {
                 data->mesh->write_value(p_x, p_y, p_z, buffer[n] * gain);
                 buffer[n] = 0;
             }
-            data->mesh->update(p, p, p, p, p, p);
+            data->mesh->update(p_xp, p_xn, p_yp, p_yn, p_zp, p_zn);
             out_buffer[n * out_channels + 0] = data->mesh->read_value(listen_l_x, listen_l_y, listen_l_z);
             out_buffer[n * out_channels + 1] = data->mesh->read_value(listen_r_x, listen_r_y, listen_r_z);
             for (int i = 2; i < out_channels; i++) {
