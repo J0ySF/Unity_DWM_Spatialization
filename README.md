@@ -1,3 +1,8 @@
+### Branch information
+
+Technique used: one point is sampled in the mesh, then the values at said point is blended with the spatialized audio 
+coming from each source (outside of the mesh)
+
 # Unity DWM Spatialization
 
 Experimental spatialization implementation for Unity.
