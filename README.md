@@ -1,3 +1,9 @@
+### Branch information
+
+Technique used: one point is sampled in the mesh at each ear's position, then the values at said points are
+interpolated via HRTF considering as if the audio source is straight in front of the listener (this means that there is
+no lateralization via HRTF)
+
 # Unity DWM Spatialization
 
 Experimental spatialization implementation for Unity.
