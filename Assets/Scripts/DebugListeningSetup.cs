@@ -22,19 +22,20 @@ public class DebugListeningSetup : MonoBehaviour
             -(m[8] * m[12] + m[9] * m[13] + m[10] * m[14])
         );
 
-        var right = new Vector3(m[0], m[4], m[8]);
         var forward = new Vector3(m[2], m[6], m[10]);
+        // TODO: this does not allow tilting the head
+        var forwardYLess = new Vector3(
+            m[2], //m[0] * m[2] + m[4] * m[6] + m[8] * m[10],
+            m[1] * m[2] + m[5] * m[6] + m[9] * m[10],
+            m[10] // m[2] * m[2] + m[6] * m[6] + m[10] * m[10]
+        );
+        Debug.Log($"Elevation {-Mathf.Atan2(forward.y, Mathf.Sqrt(forward.x * forward.x + forward.z * forward.z)) * Mathf.Rad2Deg}");
 
-        var leftPosition = position - right * CachedEarsDistance / 2.0f;
-        var rightPosition = position + right * CachedEarsDistance / 2.0f;
-        
         Gizmos.color = Color.black;
         Gizmos.DrawWireSphere(position, CachedEarsDistance / 2.0f);
-        Gizmos.color = Color.blue;
-        Gizmos.DrawWireSphere(leftPosition, CachedEarsDistance / 4.0f);
-        Gizmos.color = Color.red;
-        Gizmos.DrawWireSphere(rightPosition, CachedEarsDistance / 4.0f);
         Gizmos.color = Color.green;
         Gizmos.DrawLine(position, position + forward * CachedEarsDistance);
+        Gizmos.color = Color.magenta;
+        Gizmos.DrawLine(position, position + forwardYLess * CachedEarsDistance);
     }
 }
