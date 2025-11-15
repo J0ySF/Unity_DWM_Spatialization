@@ -1,3 +1,6 @@
 [submodule "Native/third-party/NativeAudioPlugins"]
 	path = Native/third-party/NativeAudioPlugins
 	url = https://github.com/Unity-Technologies/NativeAudioPlugins
+[submodule "Native/third-party/Spatial_Audio_Framework"]
+	path = Native/third-party/Spatial_Audio_Framework
+	url = https://github.com/leomccormack/Spatial_Audio_Framework

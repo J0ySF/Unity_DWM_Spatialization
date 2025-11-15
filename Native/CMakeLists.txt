@@ -84,6 +84,8 @@ add_library(Unity_DWM_Spatializer SHARED plugin.cpp ${UNITY_NATIVE_AUDIO_PLUGIN_
 target_include_directories(Unity_DWM_Spatializer PUBLIC ${CMAKE_SOURCE_DIR} ${CMAKE_BINARY_DIR})
 
 # Link libraries and configure the Plugins folder target prefix
+add_subdirectory(third-party/Spatial_Audio_Framework)
+target_link_libraries(Unity_DWM_Spatializer PUBLIC saf_example_binauraliser)
 if (UNIX)
     # Suppose that UNIX -> Linux
     # TODO: improve target detection for other "non-Linux" UNIX targets
