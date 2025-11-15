@@ -1,3 +1,7 @@
+### Branch information
+
+Technique used: two points are sampled in the mesh for each ear
+
 # Unity DWM Spatialization
 
 Experimental spatialization implementation for Unity.
