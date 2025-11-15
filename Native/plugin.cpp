@@ -19,6 +19,8 @@ int UNITY_AUDIODSP_EXPORT_API GetMaxSourceCount() { return DWM_MAX_SOURCE_COUNT;
 float UNITY_AUDIODSP_EXPORT_API GetMeshWidth() { return DWM_MESH_WIDTH; }
 float UNITY_AUDIODSP_EXPORT_API GetMeshHeight() { return DWM_MESH_HEIGHT; }
 float UNITY_AUDIODSP_EXPORT_API GetMeshDepth() { return DWM_MESH_DEPTH; }
+int UNITY_AUDIODSP_EXPORT_API GetMeshSurfaceSamplingCountX() { return DWM_MESH_SURFACE_SAMPLING_COUNT_X; }
+int UNITY_AUDIODSP_EXPORT_API GetMeshSurfaceSamplingCountZ() { return DWM_MESH_SURFACE_SAMPLING_COUNT_Z; }
 float UNITY_AUDIODSP_EXPORT_API GetEarsDistance() { return DWM_EARS_DISTANCE; }
 void UNITY_AUDIODSP_EXPORT_API WriteSource(const int index, const float p_x, const float p_y, const float p_z,
                                            float *buffer, const int num_channels) {
@@ -89,9 +91,9 @@ namespace DWM_Mesh_Simulation {
                                            param_cutoff_xn, "Cutoff X-");
 
         AudioPluginUtil::RegisterParameter(definition, "Admittance Y+", "%", //
-                                   0.0f, 1.0f, 0.0f, //
-                                   1.0f, 1.0f, //
-                                   param_admittance_yp, "Admittance Y+");
+                                           0.0f, 1.0f, 0.0f, //
+                                           1.0f, 1.0f, //
+                                           param_admittance_yp, "Admittance Y+");
         AudioPluginUtil::RegisterParameter(definition, "Cutoff Y+", "%", //
                                            0.0f, 1.0f, 0.0f, //
                                            1.0f, 1.0f, //
@@ -106,9 +108,9 @@ namespace DWM_Mesh_Simulation {
                                            param_cutoff_yn, "Cutoff Y-");
 
         AudioPluginUtil::RegisterParameter(definition, "Admittance Z+", "%", //
-                                   0.0f, 1.0f, 0.0f, //
-                                   1.0f, 1.0f, //
-                                   param_admittance_zp, "Admittance Z+");
+                                           0.0f, 1.0f, 0.0f, //
+                                           1.0f, 1.0f, //
+                                           param_admittance_zp, "Admittance Z+");
         AudioPluginUtil::RegisterParameter(definition, "Cutoff Z+", "%", //
                                            0.0f, 1.0f, 0.0f, //
                                            1.0f, 1.0f, //
@@ -203,8 +205,30 @@ namespace DWM_Mesh_Simulation {
                 buffer[n] = 0;
             }
             data->mesh->update(p_xp, p_xn, p_yp, p_yn, p_zp, p_zn);
-            out_buffer[n * out_channels + 0] = data->mesh->read_value(listen_l_x, listen_l_y, listen_l_z);
-            out_buffer[n * out_channels + 1] = data->mesh->read_value(listen_r_x, listen_r_y, listen_r_z);
+
+            float accum_l = 0.0f, accum_r = 0.0f;
+            for (int z = 0; z < DWM_MESH_SURFACE_SAMPLING_COUNT_Z; z++)
+                for (int x = 0; x < DWM_MESH_SURFACE_SAMPLING_COUNT_X; x++) {
+                    const float c_x = x / static_cast<float>(DWM_MESH_SURFACE_SAMPLING_COUNT_X - 1) * DWM_MESH_WIDTH;
+                    constexpr float c_y = DWM_MESH_HEIGHT;
+                    const float c_z = z / static_cast<float>(DWM_MESH_SURFACE_SAMPLING_COUNT_Z - 1) * DWM_MESH_DEPTH;
+
+                    const float dl_x = listen_l_x - c_x;
+                    const float dl_y = listen_l_y - c_y;
+                    const float dl_z = listen_l_z - c_z;
+                    const float dr_x = listen_r_x - c_x;
+                    const float dr_y = listen_r_y - c_y;
+                    const float dr_z = listen_r_z - c_z;
+
+                    const float dist_l = std::sqrt(dl_x * dl_x + dl_y * dl_y + dl_z * dl_z) + 1;
+                    const float dist_r = std::sqrt(dr_x * dr_x + dr_y * dr_y + dr_z * dr_z) + 1;
+                    const float v = data->mesh->read_value(c_x, c_y, c_z);
+                    accum_l += v / (dist_l * dist_l);
+                    accum_r += v / (dist_r * dist_r);
+                }
+
+            out_buffer[n * out_channels + 0] = accum_l;
+            out_buffer[n * out_channels + 1] = accum_r;
             for (int i = 2; i < out_channels; i++) {
                 out_buffer[n * out_channels + i] = 0.0f;
             }

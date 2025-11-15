@@ -6,9 +6,29 @@ public class DebugListeningSetup : MonoBehaviour
     private static class NativePlugin
     {
         [DllImport("Unity_DWM_Spatializer")]
+        public static extern float GetMeshWidth();
+
+        [DllImport("Unity_DWM_Spatializer")]
+        public static extern float GetMeshHeight();
+
+        [DllImport("Unity_DWM_Spatializer")]
+        public static extern float GetMeshDepth();
+
+        [DllImport("Unity_DWM_Spatializer")]
+        public static extern int GetMeshSurfaceSamplingCountX();
+
+        [DllImport("Unity_DWM_Spatializer")]
+        public static extern int GetMeshSurfaceSamplingCountZ();
+
+        [DllImport("Unity_DWM_Spatializer")]
         public static extern float GetEarsDistance();
     }
 
+    private static readonly float CachedMeshWidth = NativePlugin.GetMeshWidth();
+    private static readonly float CachedMeshHeight = NativePlugin.GetMeshHeight();
+    private static readonly float CachedMeshDepth = NativePlugin.GetMeshDepth();
+    private static readonly int CachedMeshSurfaceSamplingCountX = NativePlugin.GetMeshSurfaceSamplingCountX();
+    private static readonly int CachedMeshSurfaceSamplingCountZ = NativePlugin.GetMeshSurfaceSamplingCountZ();
     private static readonly float CachedEarsDistance = NativePlugin.GetEarsDistance();
 
     // Visualize the data as used in the native plugin
@@ -27,7 +47,23 @@ public class DebugListeningSetup : MonoBehaviour
 
         var leftPosition = position - right * CachedEarsDistance / 2.0f;
         var rightPosition = position + right * CachedEarsDistance / 2.0f;
-        
+
+        for (var z = 0; z < CachedMeshSurfaceSamplingCountZ; z++)
+        {
+            for (var x = 0; x < CachedMeshSurfaceSamplingCountX; x++)
+            {
+                var dest = new Vector3(x * CachedMeshWidth / (CachedMeshSurfaceSamplingCountX - 1.0f),
+                    CachedMeshHeight,
+                    z * CachedMeshDepth / (CachedMeshSurfaceSamplingCountZ - 1.0f));
+                Gizmos.color = Color.Lerp(new Color32(0, 0, 0, 0), new Color32(255, 255, 0, 255),
+                    1 / Mathf.Pow(Vector3.Distance(leftPosition, dest) + 1, 2));
+                Gizmos.DrawLine(leftPosition, dest);
+                Gizmos.color = Color.Lerp(new Color32(0, 0, 0, 0), new Color32(255, 255, 0, 255),
+                    1 / Mathf.Pow(Vector3.Distance(rightPosition, dest) + 1, 2));
+                Gizmos.DrawLine(rightPosition, dest);
+            }
+        }
+
         Gizmos.color = Color.black;
         Gizmos.DrawWireSphere(position, CachedEarsDistance / 2.0f);
         Gizmos.color = Color.blue;
