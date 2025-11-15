@@ -2,8 +2,136 @@
 // ReSharper disable CppDFAConstantFunctionResult
 #include <atomic>
 #include "AudioPluginUtil.h"
+#include "binauraliser.h"
 #include "dwm.h"
 #include "plugin_config.h"
+
+namespace HRTF {
+    enum Param { P_Gain, P_NUM };
+
+    struct EffectData {
+        float p[P_NUM]{};
+        void *binauraliser = nullptr;
+    };
+
+    int InternalRegisterEffectDefinition(UnityAudioEffectDefinition &definition) {
+        definition.paramdefs = new UnityAudioParameterDefinition[P_NUM];
+        AudioPluginUtil::RegisterParameter(definition, "Gain", "dB", -100.0f, 100.0f,
+                                           0.0f, 1.0f, 1.0f, P_Gain,
+                                           "Overall gain applied");
+
+        definition.flags |= UnityAudioEffectDefinitionFlags_IsSpatializer;
+        //definition.flags |= UnityAudioEffectDefinitionFlags_AppliesDistanceAttenuation;
+        return P_NUM;
+    }
+
+    UNITY_AUDIODSP_RESULT UNITY_AUDIODSP_CALLBACK
+    CreateCallback(UnityAudioEffectState *state) {
+        auto *effectdata = new EffectData;
+        binauraliser_create(&effectdata->binauraliser);
+        binauraliser_init(effectdata->binauraliser, 16000);
+        binauraliser_setEnableHRIRsDiffuseEQ(effectdata->binauraliser, 1);
+        binauraliser_setEnableRotation(effectdata->binauraliser, 1);
+        binauraliser_initCodec(effectdata->binauraliser);
+        AudioPluginUtil::InitParametersFromDefinitions(
+            InternalRegisterEffectDefinition, effectdata->p);
+        state->effectdata = effectdata;
+        return UNITY_AUDIODSP_OK;
+    }
+
+    UNITY_AUDIODSP_RESULT UNITY_AUDIODSP_CALLBACK
+    ReleaseCallback(UnityAudioEffectState *state) {
+        auto *effectdata = state->GetEffectData<EffectData>();
+        binauraliser_destroy(&effectdata->binauraliser);
+        delete effectdata;
+        return UNITY_AUDIODSP_OK;
+    }
+
+    UNITY_AUDIODSP_RESULT UNITY_AUDIODSP_CALLBACK SetFloatParameterCallback(
+        UnityAudioEffectState *state, const int index, const float value) {
+        auto *effectdata = state->GetEffectData<EffectData>();
+        if (index >= P_NUM)
+            return UNITY_AUDIODSP_ERR_UNSUPPORTED;
+        effectdata->p[index] = value;
+        return UNITY_AUDIODSP_OK;
+    }
+
+    UNITY_AUDIODSP_RESULT UNITY_AUDIODSP_CALLBACK GetFloatParameterCallback(
+        UnityAudioEffectState *state, int index, float *value, char *valuestr) {
+        const auto *effectdata = state->GetEffectData<EffectData>();
+        if (value != nullptr)
+            *value = effectdata->p[index];
+        if (valuestr != nullptr)
+            valuestr[0] = 0;
+        return UNITY_AUDIODSP_OK;
+    }
+
+    int UNITY_AUDIODSP_CALLBACK GetFloatBufferCallback(UnityAudioEffectState *state,
+                                                       const char *name,
+                                                       float *buffer,
+                                                       int numsamples) {
+        auto *effectdata = state->GetEffectData<EffectData>();
+        memset(buffer, 0, sizeof(float) * numsamples);
+
+        return UNITY_AUDIODSP_OK;
+    }
+
+    UNITY_AUDIODSP_RESULT UNITY_AUDIODSP_CALLBACK
+    ProcessCallback(UnityAudioEffectState *state, float *inbuffer, float *outbuffer,
+                    unsigned int length, int inchannels, int outchannels) {
+        auto *data = state->GetEffectData<EffectData>();
+
+        auto *L = state->spatializerdata->listenermatrix;
+        auto *S = state->spatializerdata->sourcematrix;
+
+        float sourcepos_x = S[12];
+        float sourcepos_y = S[13];
+        float sourcepos_z = S[14];
+
+        float listenerpos_x = -(L[0] * L[12] + L[1] * L[13] + L[2] * L[14]);
+        float listenerpos_y = -(L[4] * L[12] + L[5] * L[13] + L[6] * L[14]);
+        float listenerpos_z = -(L[8] * L[12] + L[9] * L[13] + L[10] * L[14]);
+
+        const float delta_x = - listenerpos_x + sourcepos_x;
+        const float delta_y = - listenerpos_y + sourcepos_y;
+        const float delta_z = - listenerpos_z + sourcepos_z;
+
+        const float delta_r_x = L[0] * delta_x + L[4] * delta_y + L[8] * delta_z;
+        const float delta_r_y = L[1] * delta_x + L[5] * delta_y + L[9] * delta_z;
+        const float delta_r_z = L[2] * delta_x + L[6] * delta_y + L[10] * delta_z;
+        binauraliser_setSourceAzi_deg(data->binauraliser, 0,
+                                      -std::atan2(delta_r_x, delta_r_z) / AudioPluginUtil::kPI * 180.0f);
+        binauraliser_setSourceElev_deg(
+                data->binauraliser, 0,
+                std::atan2(delta_r_y, std::sqrt(delta_r_x * delta_r_x + delta_r_z * delta_r_z)) /
+                        AudioPluginUtil::kPI * 180.0f);
+
+        float temp_1[128];
+        float temp_2[128];
+        float temp_3[128];
+
+        const float gain = powf(10.0f, data->p[P_Gain] * 0.05f);
+        for (unsigned int n = 0; n < length; n++) {
+            temp_1[n] = inbuffer[n * inchannels] * gain;
+        }
+
+        const float *const_temp1 = temp_1;
+
+        float *outputs[2] = {temp_2, temp_3};
+        binauraliser_process(data->binauraliser, &const_temp1, outputs, 1, 2, 128);
+
+        for (unsigned int n = 0; n < length; n++) {
+            outbuffer[n * outchannels + 0] = temp_2[n];
+            outbuffer[n * outchannels + 1] = temp_3[n];
+            for (int i = 2; i < outchannels; i++) {
+                outbuffer[n * outchannels + i] = 0;
+            }
+        }
+
+        return UNITY_AUDIODSP_OK;
+    }
+}; // namespace Plugin
+
 
 struct dwm_source_data_t {
     float p_x = 0.0f, p_y = 0.0f, p_z = 0.0f;
@@ -43,7 +171,8 @@ namespace DWM_Mesh_Simulation {
             mesh_admittance_lowpass;
 
     enum param_t {
-        param_gain,
+        param_raw_gain,
+        param_hrtf_gain,
         param_admittance_xp,
         param_cutoff_xp, //
         param_admittance_xn,
@@ -66,10 +195,15 @@ namespace DWM_Mesh_Simulation {
 
     int InternalRegisterEffectDefinition(UnityAudioEffectDefinition &definition) {
         definition.paramdefs = new UnityAudioParameterDefinition[param_num];
-        AudioPluginUtil::RegisterParameter(definition, "Gain", "dB", //
+        AudioPluginUtil::RegisterParameter(definition, "Raw Gain", "dB", //
                                            -100.0f, 100.0f, 0.0f, //
                                            1.0f, 1.0f, //
-                                           param_gain, "Overall gain applied");
+                                           param_raw_gain, "Overall gain applied");
+
+        AudioPluginUtil::RegisterParameter(definition, "HRTF Gain", "dB", //
+                                   -100.0f, 100.0f, 0.0f, //
+                                   1.0f, 1.0f, //
+                                   param_hrtf_gain, "Overall gain applied");
 
         AudioPluginUtil::RegisterParameter(definition, "Admittance X+", "%", //
                                            0.0f, 1.0f, 0.0f, //
@@ -167,9 +301,9 @@ namespace DWM_Mesh_Simulation {
         return UNITY_AUDIODSP_OK;
     }
 
-    UNITY_AUDIODSP_RESULT UNITY_AUDIODSP_CALLBACK ProcessCallback(UnityAudioEffectState *state, float *,
+    UNITY_AUDIODSP_RESULT UNITY_AUDIODSP_CALLBACK ProcessCallback(UnityAudioEffectState *state, float *in_buffer,
                                                                   float *out_buffer, const unsigned int num_samples,
-                                                                  const int, const int out_channels) {
+                                                                  const int in_channels, const int out_channels) {
         const auto *data = state->GetEffectData<data_t>();
         const float *m = state->spatializerdata->listenermatrix;
 
@@ -196,15 +330,22 @@ namespace DWM_Mesh_Simulation {
         const auto p_zp = boundary_parameters(data->parameters[param_admittance_zp], data->parameters[param_cutoff_zp]);
         const auto p_zn = boundary_parameters(data->parameters[param_admittance_zn], data->parameters[param_cutoff_zn]);
 
-        const float gain = powf(10.0f, data->parameters[param_gain] * 0.05f);
+        const float raw_gain = powf(10.0f, data->parameters[param_raw_gain] * 0.05f);
+        const float hrtf_gain = powf(10.0f, data->parameters[param_hrtf_gain] * 0.05f);
         for (unsigned int n = 0; n < num_samples; n++) {
             for (auto &[p_x, p_y, p_z, buffer]: dwm_source_data) {
-                data->mesh->write_value(p_x, p_y, p_z, buffer[n] * gain);
+                data->mesh->write_value(p_x, p_y, p_z, buffer[n] * raw_gain);
                 buffer[n] = 0;
             }
             data->mesh->update(p_xp, p_xn, p_yp, p_yn, p_zp, p_zn);
-            out_buffer[n * out_channels + 0] = data->mesh->read_value(listen_l_x, listen_l_y, listen_l_z);
-            out_buffer[n * out_channels + 1] = data->mesh->read_value(listen_r_x, listen_r_y, listen_r_z);
+#ifdef MONO_LISTEN
+            const float v = data->mesh->read_value(listen_l_x, listen_l_y, listen_l_z);
+            out_buffer[n * out_channels + 0] = v + in_buffer[n * in_channels + 0] * hrtf_gain;
+            out_buffer[n * out_channels + 1] = v + in_buffer[n * in_channels + 1] * hrtf_gain;
+#else
+            out_buffer[n * out_channels + 0] = data->mesh->read_value(listen_l_x, listen_l_y, listen_l_z) + in_buffer[n * in_channels + 0] * hrtf_gain;
+            out_buffer[n * out_channels + 1] = data->mesh->read_value(listen_r_x, listen_r_y, listen_r_z) + in_buffer[n * in_channels + 1] * hrtf_gain;
+#endif
             for (int i = 2; i < out_channels; i++) {
                 out_buffer[n * out_channels + i] = 0.0f;
             }

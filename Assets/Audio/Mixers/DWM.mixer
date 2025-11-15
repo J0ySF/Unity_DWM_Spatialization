@@ -37,6 +37,8 @@ AudioMixerEffectController:
     m_GUID: d77953dd017647445a81d19f24569259
   - m_ParameterName: Cutoff Y-
     m_GUID: 0d39853320d5ecf4e89f02aef4caa48e
+  - m_ParameterName: Dry/Wet Mix
+    m_GUID: caf53d15a7b0b4847a9771f1a459e1f0
   m_SendTarget: {fileID: 0}
   m_EnableWetMix: 0
   m_Bypass: 0
@@ -124,6 +126,7 @@ AudioMixerSnapshotController:
     fb8fe183fab1df545b460deeacf0e107: 1
     8ef8911501b0db14ebab3098a8bf3080: 0
     49f86315923de5542915da595c1aa14d: 0.694
+    caf53d15a7b0b4847a9771f1a459e1f0: 0.782
     62a7af76a7f89dc4f938f3984c5b804a: 0
     5464ebe64400d244cbfc5b77eb26211a: 0.1
     c47a2548a2bb300428de5202ee6d22f7: 0.639
