@@ -1,3 +1,8 @@
+### Branch information
+
+Technique used: one point is sampled in the mesh at the listener position, then the values at said point are
+interpolated via HRTF for each source direction relative to the listener
+
 # Unity DWM Spatialization
 
 Experimental spatialization implementation for Unity.
