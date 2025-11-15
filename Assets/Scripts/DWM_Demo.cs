@@ -67,7 +67,7 @@ public class DWM_Demo : MonoBehaviour
 
     private void Update()
     {
-        if (Keyboard.current.leftArrowKey.wasPressedThisFrame) PreviousTest();
-        else if (Keyboard.current.rightArrowKey.wasPressedThisFrame) NextTest();
+        if (Keyboard.current.backspaceKey.wasPressedThisFrame) PreviousTest();
+        else if (Keyboard.current.enterKey.wasPressedThisFrame) NextTest();
     }
 }
