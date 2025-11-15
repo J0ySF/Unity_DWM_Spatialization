@@ -1,3 +1,8 @@
+### Branch information
+
+Technique used: many points are sampled on the top side of the mesh, with attenuation based on distance from the
+listener, then HRTF is applied to each attenuated point
+
 # Unity DWM Spatialization
 
 Experimental spatialization implementation for Unity.
