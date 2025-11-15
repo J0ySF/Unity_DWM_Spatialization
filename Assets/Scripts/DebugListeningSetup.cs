@@ -22,18 +22,10 @@ public class DebugListeningSetup : MonoBehaviour
             -(m[8] * m[12] + m[9] * m[13] + m[10] * m[14])
         );
 
-        var right = new Vector3(m[0], m[4], m[8]);
         var forward = new Vector3(m[2], m[6], m[10]);
 
-        var leftPosition = position - right * CachedEarsDistance / 2.0f;
-        var rightPosition = position + right * CachedEarsDistance / 2.0f;
-        
         Gizmos.color = Color.black;
         Gizmos.DrawWireSphere(position, CachedEarsDistance / 2.0f);
-        Gizmos.color = Color.blue;
-        Gizmos.DrawWireSphere(leftPosition, CachedEarsDistance / 4.0f);
-        Gizmos.color = Color.red;
-        Gizmos.DrawWireSphere(rightPosition, CachedEarsDistance / 4.0f);
         Gizmos.color = Color.green;
         Gizmos.DrawLine(position, position + forward * CachedEarsDistance);
     }

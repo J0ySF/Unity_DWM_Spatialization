@@ -2,11 +2,13 @@
 // ReSharper disable CppDFAConstantFunctionResult
 #include <atomic>
 #include "AudioPluginUtil.h"
+#include "binauraliser.h"
 #include "dwm.h"
 #include "plugin_config.h"
 
 struct dwm_source_data_t {
     float p_x = 0.0f, p_y = 0.0f, p_z = 0.0f;
+    bool active = false;
     float buffer[DWM_BUFFER_SIZE] = {};
 };
 
@@ -26,6 +28,7 @@ void UNITY_AUDIODSP_EXPORT_API WriteSource(const int index, const float p_x, con
     src_data->p_x = p_x;
     src_data->p_y = p_y;
     src_data->p_z = p_z;
+    src_data->active = true;
     for (unsigned int n = 0; n < DWM_BUFFER_SIZE; n++)
         src_data->buffer[n] = buffer[n * num_channels];
 }
@@ -62,6 +65,7 @@ namespace DWM_Mesh_Simulation {
     struct data_t {
         float parameters[param_num];
         mesh_admittance_lowpass *mesh;
+        void *binauraliser;
     };
 
     int InternalRegisterEffectDefinition(UnityAudioEffectDefinition &definition) {
@@ -89,9 +93,9 @@ namespace DWM_Mesh_Simulation {
                                            param_cutoff_xn, "Cutoff X-");
 
         AudioPluginUtil::RegisterParameter(definition, "Admittance Y+", "%", //
-                                   0.0f, 1.0f, 0.0f, //
-                                   1.0f, 1.0f, //
-                                   param_admittance_yp, "Admittance Y+");
+                                           0.0f, 1.0f, 0.0f, //
+                                           1.0f, 1.0f, //
+                                           param_admittance_yp, "Admittance Y+");
         AudioPluginUtil::RegisterParameter(definition, "Cutoff Y+", "%", //
                                            0.0f, 1.0f, 0.0f, //
                                            1.0f, 1.0f, //
@@ -106,9 +110,9 @@ namespace DWM_Mesh_Simulation {
                                            param_cutoff_yn, "Cutoff Y-");
 
         AudioPluginUtil::RegisterParameter(definition, "Admittance Z+", "%", //
-                                   0.0f, 1.0f, 0.0f, //
-                                   1.0f, 1.0f, //
-                                   param_admittance_zp, "Admittance Z+");
+                                           0.0f, 1.0f, 0.0f, //
+                                           1.0f, 1.0f, //
+                                           param_admittance_zp, "Admittance Z+");
         AudioPluginUtil::RegisterParameter(definition, "Cutoff Z+", "%", //
                                            0.0f, 1.0f, 0.0f, //
                                            1.0f, 1.0f, //
@@ -129,14 +133,19 @@ namespace DWM_Mesh_Simulation {
     UNITY_AUDIODSP_RESULT UNITY_AUDIODSP_CALLBACK CreateCallback(UnityAudioEffectState *state) {
         auto *data = new data_t();
         data->mesh = new mesh_admittance_lowpass();
+        binauraliser_create(&data->binauraliser);
+        binauraliser_init(data->binauraliser, DWM_SAMPLE_RATE);
+        binauraliser_setNumSources(data->binauraliser, DWM_MAX_SOURCE_COUNT);
+        binauraliser_initCodec(data->binauraliser);
         AudioPluginUtil::InitParametersFromDefinitions(InternalRegisterEffectDefinition, data->parameters);
         state->effectdata = data;
         return UNITY_AUDIODSP_OK;
     }
 
     UNITY_AUDIODSP_RESULT UNITY_AUDIODSP_CALLBACK ReleaseCallback(UnityAudioEffectState *state) {
-        const auto *data = state->GetEffectData<data_t>();
+        auto *data = state->GetEffectData<data_t>();
         delete data->mesh;
+        binauraliser_destroy(&data->binauraliser);
         delete data;
         return UNITY_AUDIODSP_OK;
     }
@@ -197,18 +206,50 @@ namespace DWM_Mesh_Simulation {
         const auto p_zn = boundary_parameters(data->parameters[param_admittance_zn], data->parameters[param_cutoff_zn]);
 
         const float gain = powf(10.0f, data->parameters[param_gain] * 0.05f);
+        float intermediate[DWM_BUFFER_SIZE];
         for (unsigned int n = 0; n < num_samples; n++) {
-            for (auto &[p_x, p_y, p_z, buffer]: dwm_source_data) {
+            for (auto &[p_x, p_y, p_z, active, buffer]: dwm_source_data) {
                 data->mesh->write_value(p_x, p_y, p_z, buffer[n] * gain);
                 buffer[n] = 0;
             }
             data->mesh->update(p_xp, p_xn, p_yp, p_yn, p_zp, p_zn);
-            out_buffer[n * out_channels + 0] = data->mesh->read_value(listen_l_x, listen_l_y, listen_l_z);
-            out_buffer[n * out_channels + 1] = data->mesh->read_value(listen_r_x, listen_r_y, listen_r_z);
+            intermediate[n] = data->mesh->read_value(listen_x, listen_y, listen_z);
+        }
+        int in_count = 0;
+        const float *in[DWM_MAX_SOURCE_COUNT];
+        for (int i = 0; i < DWM_MAX_SOURCE_COUNT; i++) {
+            in[i] = intermediate;
+            if (!dwm_source_data[i].active)
+                continue;
+            const float d_x = dwm_source_data[i].p_x - listen_x;
+            const float d_y = dwm_source_data[i].p_y - listen_y;
+            const float d_z = dwm_source_data[i].p_z - listen_z;
+            const float delta_r_x = m[0] * d_x + m[4] * d_y + m[8] * d_z;
+            const float delta_r_y = m[1] * d_x + m[5] * d_y + m[9] * d_z;
+            const float delta_r_z = m[2] * d_x + m[6] * d_y + m[10] * d_z;
+            binauraliser_setSourceAzi_deg(data->binauraliser, in_count,
+                                          -std::atan2(delta_r_x, delta_r_z) / AudioPluginUtil::kPI * 180.0f);
+            binauraliser_setSourceElev_deg(
+                    data->binauraliser, in_count,
+                    std::atan2(delta_r_y, std::sqrt(delta_r_x * delta_r_x + delta_r_z * delta_r_z)) /
+                            AudioPluginUtil::kPI * 180.0f);
+            in_count++;
+        }
+        float out_l[DWM_BUFFER_SIZE], out_r[DWM_BUFFER_SIZE];
+        float *out[2] = {out_l, out_r};
+        binauraliser_process(data->binauraliser, in, out, in_count, 2, DWM_BUFFER_SIZE);
+        for (unsigned int n = 0; n < num_samples; n++) {
+            out_buffer[n * out_channels + 0] = out_l[n];
+            out_buffer[n * out_channels + 1] = out_r[n];
             for (int i = 2; i < out_channels; i++) {
                 out_buffer[n * out_channels + i] = 0.0f;
             }
         }
+
+        for (int i = 0; i < DWM_MAX_SOURCE_COUNT; i++) {
+            dwm_source_data[i].active = false;
+        }
+
 
         return UNITY_AUDIODSP_OK;
     }
