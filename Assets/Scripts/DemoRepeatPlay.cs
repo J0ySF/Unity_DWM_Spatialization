@@ -15,6 +15,7 @@ public class DemoRepeatPlay : MonoBehaviour
     {
         _audioSource = GetComponent<AudioSource>();
         _wait = Random.Range(minimumWait, maximumWait);
+        _audioSource.pitch = Random.Range(minimumPitch, maximumPitch);
     }
 
     private void Update()
@@ -26,7 +27,6 @@ public class DemoRepeatPlay : MonoBehaviour
         }
         
         _wait = Random.Range(minimumWait, maximumWait);
-        _audioSource.pitch = Random.Range(minimumPitch, maximumPitch);
         _audioSource.Play();
     }
 }
