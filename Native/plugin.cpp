@@ -135,7 +135,7 @@ namespace DWM_Mesh_Simulation {
         data->mesh = new mesh_admittance_lowpass();
         binauraliser_create(&data->binauraliser);
         binauraliser_init(data->binauraliser, DWM_SAMPLE_RATE);
-        binauraliser_setNumSources(data->binauraliser, DWM_MAX_SOURCE_COUNT);
+        binauraliser_setNumSources(data->binauraliser, DWM_MESH_SURFACE_SAMPLING_COUNT_Z * DWM_MESH_SURFACE_SAMPLING_COUNT_X);
         binauraliser_initCodec(data->binauraliser);
         AudioPluginUtil::InitParametersFromDefinitions(InternalRegisterEffectDefinition, data->parameters);
         state->effectdata = data;
